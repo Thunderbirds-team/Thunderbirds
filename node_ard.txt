@@ -1,0 +1,66 @@
+#include<SoftwareSerial.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+
+SoftwareSerial mySerial(D6, D5);
+
+const char* ssid = "connecting...";
+const char* password = "";
+
+void setup()
+{
+  Serial.begin(9600);
+  mySerial.begin(9600);
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(1000);
+    Serial.print("Connecting..");
+  }
+  Serial.println("Begin");
+}
+void loop()
+{
+  if (mySerial.available() > 0) {
+    Serial.println("connected");
+    String temp_data = mySerial.readString();
+    Serial.println(temp_data);
+    if (temp_data.indexOf("!") >= 0)
+    {
+      int data[8];
+      String char_data[8];
+      data[0] = temp_data.indexOf("!");
+      data[1] = temp_data.indexOf("@");
+      data[2] = temp_data.indexOf("#");
+      data[3] = temp_data.indexOf("$");
+
+      char_data[0] = temp_data.substring(data[0] + 1, data[1]); //temp 1
+      char_data[1] = temp_data.substring(data[1] + 1, data[2]); // temp 2
+      char_data[2] = temp_data.substring(data[2] + 1, data[3]); //temp 3
+
+      String final_data = "Temp 1 = " + String(char_data[0]) + ", Temp 2 = " + String(char_data[1]) + ", Temp 3 = " + String(char_data[2]);
+      Serial.println(final_data);
+      
+      // http sending data
+      if (WiFi.status() == WL_CONNECTED) { //Check WiFi connection status
+        HTTPClient http;//Declare an object of class HTTPClient
+
+        http.begin("http://121.200.55.62/projects/hydra/data.php?id= " + String(char_data[0]) + "&state=" + String(char_data[0]) + "&weight=" + String(char_data[0]));
+        //http://121.200.55.62/projects/hydra/data.php?water=1&ultra=1&turb=1
+        int httpCode = http.GET();//Send the request
+        if (httpCode > 0) {//Check the returning code
+          String payload = http.getString();//Get the request response payload
+          Serial.println(payload);//Print the response payload
+          delay(500);
+        }
+        else {
+          delay(500);
+        }
+        delay(500);
+        http.end();//Close connection
+      }
+    }
+  }
+  delay(100);
+}

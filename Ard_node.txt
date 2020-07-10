@@ -1,0 +1,138 @@
+#include <SoftwareSerial.h>
+SoftwareSerial mySerial(5, 6);
+
+#define SENSOR A0
+float voltage, turbidity;
+int tri = 8;
+int echo = 9;
+int buzz = 3;
+int Ledr = 13;
+int distance;
+int safe;
+long dur;
+volatile int flow_frequency; // Measures flow sensor pulses
+unsigned int l_hour; // Calculated litres/hour
+unsigned char flowsensor = 2; // Sensor Input
+unsigned long currentTime;
+unsigned long cloopTime;
+void flow () // Interrupt function
+{
+  flow_frequency++;
+}
+
+void setup()
+{
+
+  mySerial.begin(9600);
+  Serial.begin(9600);
+  Serial.println("bigins");
+  pinMode(SENSOR, INPUT);
+  pinMode(tri, OUTPUT);
+  pinMode(echo, INPUT);
+  pinMode(buzz, OUTPUT);
+  pinMode(flowsensor, INPUT);
+  digitalWrite(flowsensor, HIGH); // Optional Internal Pull-Up
+  attachInterrupt(0, flow, RISING); // Setup Interrupt
+  sei(); // Enable interrupts
+  currentTime = millis();
+  cloopTime = currentTime;
+}
+void loop()
+{
+
+  digitalWrite(tri, LOW);
+  delayMicroseconds(2);
+  digitalWrite(tri, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(tri, LOW);
+  dur = pulseIn(echo, HIGH);
+  distance = dur * 0.034 / 2;
+  safe = distance;
+  currentTime = millis();
+  // Every second, calculate and print litres/hour
+  if (currentTime >= (cloopTime + 1000))
+  {
+    cloopTime = currentTime; // Updates cloopTime
+    // Pulse frequency (Hz) = 7.5Q, Q is flow rate in L/min.
+    l_hour = (flow_frequency * 60 / 7.5); // (Pulse frequency x 60 min) / 7.5Q = flowrate in L/hour
+    flow_frequency = 0; // Reset Counter
+
+  }
+  //Ultrasonic sensor
+  if (safe <= 20)
+  {
+    digitalWrite(buzz, HIGH);
+    digitalWrite(Ledr, HIGH);
+
+    Serial.print("distance: ");
+    Serial.println(distance);
+    Serial.print("Out of limit");
+    Serial.print("\n");
+    delay(1000);
+
+  } else
+  {
+    digitalWrite(buzz, LOW);
+    digitalWrite(Ledr, LOW);
+    Serial.print("distance: ");
+    Serial.println(distance);
+    Serial.print("Normal limit");
+    Serial.print("\n");
+    delay(1000);
+
+  }
+
+  //Water flow rate
+  if ((l_hour >= 6) && (l_hour <= 10))
+  {
+    l_hour = (flow_frequency * 60 / 7.5); // (Pulse frequency x 60 min) / 7.5Q = flowrate in L/hour
+    flow_frequency = 0; // Reset Counter
+    digitalWrite(Ledr, LOW);
+
+    Serial.print(l_hour, DEC); // Print litres/hour
+    Serial.println(" L/hour");
+    Serial.print("Normal limit");
+    Serial.print("\n");
+    delay(1000);
+  }
+  else
+  {
+    l_hour = (flow_frequency * 60 / 7.5); // (Pulse frequency x 60 min) / 7.5Q = flowrate in L/hour
+    flow_frequency = 0; // Reset Countertttttttttttttttttt
+    digitalWrite(Ledr, HIGH);
+
+    Serial.print(l_hour, DEC); // Print litres/hour
+    Serial.println(" L/hour");
+    Serial.print("Out of Limit");
+    Serial.print("\n");
+    delay(1000);
+  }
+  //Turbidity sensor
+  voltage = 0.004888 * analogRead(SENSOR); //in V
+  turbidity = -1120.4 * voltage * voltage + 5742.3 * voltage - 4352.9; //in NTU
+  if ((voltage >= 2.5) & (turbidity >= 0))
+  {
+    //Serial.println("Voltage="+String(voltage));
+    //delay(500);
+  }
+  if ((voltage >= 3.0) && (voltage <= 3.2))
+  {
+    Serial.println("Voltage=" + String(voltage));
+    Serial.print("Normal limit");
+    Serial.print("\n");
+    delay(1000);
+
+  }
+  else
+  {
+    Serial.println("Voltage=" + String(voltage));
+    Serial.print("Out of Limit");
+    Serial.print("\n");
+    delay(1000);
+  }
+  String final_data = "!" + String(distance) + "@" + String(l_hour) + "#" + String(voltage) + "$";
+  Serial.print(final_data);
+  mySerial.print(final_data);
+  Serial.print("\n");
+
+}
